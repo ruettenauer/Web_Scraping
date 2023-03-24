@@ -6,5 +6,6 @@
 _data/*
 !_data/msoa_spatial.RData
 cache/
+Literatur/
 **/*_cache
 .Rproj.user
