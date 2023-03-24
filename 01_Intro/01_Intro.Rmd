@@ -34,7 +34,7 @@ library(fontawesome)
 
 ### Course
 
-`r fa('globe')` Link to Github
+`r fa('globe')` [https://github.com/ruettenauer/Web_Scraping](https://github.com/ruettenauer/Web_Scraping)
 
 This course profited a lot from existing materials by
 

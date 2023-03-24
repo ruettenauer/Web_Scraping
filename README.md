@@ -6,8 +6,9 @@ This is a short-course on web scraping from the UCL SRI Quantitative Social Scie
 
 ## Materials
 
-1. [Introcution to Web Scraping](https://github.com/ruettenauer/Web_Scraping/main/01_Intro/01_Intro.html)
+1. [Introcution to Web Scraping](https://raw.githack.com/ruettenauer/Web_Scraping/main/01_Intro/01_Intro.html)
+                                
 
-2. [Practical exercise](https://github.com/ruettenauer/Web_Scraping/main/02_Exercise/02_Exercise.html)
+2. [Practical exercise](https://raw.githack.com/ruettenauer/Web_Scraping/main/02_Exercise/02_Exercise.html)
 
 ---
