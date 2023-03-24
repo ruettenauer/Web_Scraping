@@ -1,0 +1,340 @@
+---
+title: "Applied Web Scraping"
+author: "Tobias Rüttenauer"
+date: "March 24, 2023"
+output_dir: docs
+output: 
+  html_document:
+    theme: flatly
+    highlight: haddock
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 2
+theme: united
+bibliography: sicss-spatial.bib
+link-citations: yes
+---
+
+### Required packages
+
+```{r, message = FALSE, warning = FALSE, results = 'hide'}
+pkgs <- c("sf", "gstat", "mapview", "dplyr",
+          "rvest", "xml2",
+          "nomisr", "osmdata", "tidyr") 
+lapply(pkgs, require, character.only = TRUE)
+
+```
+
+### Session info
+
+```{r}
+sessionInfo()
+
+```
+
+```{r}
+# Create subdir for data if not exists
+dn <- "_data"
+ifelse(dir.exists(dn), "Exists", dir.create(dn))
+```
+
+
+# Web Scraping
+
+This example is inspired by @Biegert.2023.
+
+## Football Stats
+
+Let's try to get some football player stats from [FBREF](https://fbref.com/en/). On the home page, we see a list of trending player pages: [https://fbref.com/en/]() Let's see if we can get this information into R.
+
+![[https://fbref.com/en/](https://fbref.com/en/)](fig/fbref2.png)
+
+Inspecting the head shots of players give is the following xpath: `//*[@id="players"]/div[3]`
+
+```{r eval=FALSE}
+# Scrape the website
+url <- "https://fbref.com/en/"
+parsed <- read_html(url)
+
+# Save xml (so we have the website locally)
+write_xml(parsed, file = "_data/fbplayers.xml")
+```
+
+```{r}
+# Read back in
+parsed <- read_html("_data/fbplayers.xml")
+
+# Select the desired element
+parsed.sub <- html_elements(parsed, xpath =  '//*[@id="players"]/div[3]')
+trending.players <- html_elements(parsed.sub, "a")
+
+trending.players
+```
+
+We have extracted the set of players with the respective links. Now, we separate these into the names with `html_text2()` and the links using `html_attrs()`.
+
+```{r}
+# Data frame with names and links of players
+trending.players.df <- data.frame(names = html_text2(trending.players),
+                       links = unlist(html_attrs(trending.players)))
+
+# Extend the links
+trending.players.df$links <- paste0("https://fbref.com/", trending.players.df$links)
+
+head(trending.players.df)
+
+```
+
+## Exercise
+
+- Can you get some player characteristics for Lionel Messi?
+
+- Can you wrap this into a loop for multiple players? __USE `sys.sleep()` TO PAUSE!__
+
+```{r eval=FALSE, echo = FALSE}
+
+### We will loop over these popular players
+
+# I set this to the first three only. Obviously, you could do more
+
+ids <- 1:3
+
+for(i in ids){
+  
+  # Get individual ids
+  player.name <- trending.players.df$names[i]
+  player.link <- trending.players.df$links[i]
+  
+  # parse the website
+  parsed.tmp <- read_html(player.link, as.data.frame = TRUE, stringAsFactors = TRUE )
+  
+  # Extract tables from the website
+  tables.tmp <- html_nodes(parsed.tmp, "table")
+  
+  # Look at attributes of these tables
+  attr.df <- data.frame(do.call(rbind, html_attrs(tables.tmp)))
+  
+  # Select the table "stats_standard_dom_lg"
+  oo <- which(attr.df$id == "stats_standard_dom_lg")
+  table.tmp <- html_table(tables.tmp[[oo]], fill = TRUE)
+  
+  # Clean the table (first row is still part of the names)
+  names <- janitor::make_clean_names(paste0(names(table.tmp), table.tmp[1,]))
+  names(table.tmp) <- names
+  table.tmp <- table.tmp[-1,]
+  
+  # Drop summary lines (they all contain non-numeric values for age)
+  oo <- which(!is.na(as.numeric(table.tmp$age)))
+  table.tmp <- table.tmp[oo,]
+  
+  # Add player name
+  table.tmp <- data.frame(player = player.name, table.tmp)
+  
+  # Combine into a common results frame
+  if(i == 1){
+    player_stats.df <- table.tmp
+  }else{
+    player_stats.df <- plyr::rbind.fill(player_stats.df, table.tmp) 
+  }
+  
+  ### Slow the loop down!!!
+  Sys.sleep(3)
+}
+
+```
+
+Now we have a time-series object of the most trending player's seasonal performances.
+
+```{r eval = FALSE}
+head(player_stats.df)
+```
+
+
+# API
+
+This is from a short course [Introduction to geospatial data and analysis](https://ruettenauer.github.io/SICSS-Spatial2022/index.html)
+
+## London shapefile (polygon)
+
+Lets get some administrative boundaries for London from the [London Datastore](https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london). 
+```{r}
+# Download zip file and unzip
+tmpf <- tempfile()
+boundary.link <- "https://data.london.gov.uk/download/statistical-gis-boundary-files-london/9ba8c833-6370-4b11-abdc-314aa020d5e0/statistical-gis-boundaries-london.zip"
+download.file(boundary.link, tmpf)
+unzip(zipfile = tmpf, exdir = paste0(dn))
+unlink(tmpf)
+
+# This is a shapefile
+# We only need the MSOA layer for now
+msoa.spdf <- st_read(dsn = paste0(dn, "/statistical-gis-boundaries-london/ESRI"),
+                     layer = "MSOA_2011_London_gen_MHW" # Note: no file ending
+                     )
+head(msoa.spdf)
+
+```
+
+This looks like a conventional `data.frame` but has the additional column `geometry` containing the coordinates of each observation. `st_geometry()` returns only the geographic object and `st_drop_geometry()` only the `data.frame` without the coordinates. We can plot the object using `mapview()`.
+
+```{r}
+mapview(msoa.spdf[, "POPDEN"])
+
+```
+
+## Census API (admin units)
+
+Now that we have some boundaries and shapes of spatial units in London, we can start looking for different data sources to populate the geometries.
+
+A good source for demographic data is for instance the 2011 census. Below we use the nomis API to retrieve population data for London, See the [Vignette](https://cran.r-project.org/web/packages/nomisr/vignettes/introduction.html) for more information (Guest users are limited to 25,000 rows per query). Below is a wrapper to avoid some mess with sex and urban-rural cross-tabs.
+
+```{r}
+### For larger request, register and set key
+# Sys.setenv(NOMIS_API_KEY = "XXX")
+# nomis_api_key(check_env = TRUE)
+
+
+
+# Get London ids
+london_ids <- msoa.spdf$MSOA11CD
+
+### Get key statistics ids
+# select required tables (https://www.nomisweb.co.uk/sources/census_2011_ks)
+# Let's get KS201EW (ethnic group) and KS402EW (housing tenure)
+
+```
+
+From the Nomis website [https://www.nomisweb.co.uk/sources/census_2011_ks](https://www.nomisweb.co.uk/sources/census_2011_ks), we can get the external identifiers that we want to pull: KS201EW (ethnic group) and KS402EW (housing tenure). Unfortunately, internal keys differ (for what reason ever...). 
+
+```{r}
+# Get table of IDs and description
+x <- nomis_data_info()
+head(x)
+```
+
+So we have to find the internal ids of KS201EW and KS402EW.
+
+```{r}
+# Get internal ids
+stats <- c("KS201EW", "KS402EW")
+oo <- which(grepl(paste(stats, collapse = "|"), x$name.value))
+ksids <- x$id[oo]
+ksids # This are the internal ids
+```
+
+Finally, we can start pulling the information from the Nomis census APi! Below is a wrapper to avoid some mess with sex and urban-rural cross-tabs. Some characteristics can be pulled separately for urban-rural or by sex - In that case we have to specify it, but we cannot specify the option if a variable does not have urban-rural or sex differentials. The wrapper below also creates a codebook with variable descriptions.
+
+```{r}
+### look at meta information
+q <- nomis_overview(ksids[1])
+head(q)
+a <- nomis_get_metadata(id = ksids[1], concept = "GEOGRAPHY", type = "type")
+a # TYPE297 is MSOA level
+
+b <- nomis_get_metadata(id = ksids[1], concept = "MEASURES", type = "TYPE297")
+b # 20100 is the measure of absolute numbers
+
+
+### Query data in loop over the required statistics
+for(i in ksids){
+
+  # Determin if data is divided by sex or urban-rural
+  nd <- nomis_get_metadata(id = i)
+  if("RURAL_URBAN" %in% nd$conceptref){
+    UR <- TRUE
+  }else{
+    UR <- FALSE
+  }
+  if("C_SEX" %in% nd$conceptref){
+    SEX <- TRUE
+  }else{
+    SEX <- FALSE
+  }
+
+  # make data request
+  if(UR == TRUE){
+    if(SEX == TRUE){
+      tmp_en <- nomis_get_data(id = i, time = "2011", 
+                               geography = london_ids, # replace with "TYPE297" for all MSOAs
+                               measures = 20100, RURAL_URBAN = 0, C_SEX = 0)
+    }else{
+      tmp_en <- nomis_get_data(id = i, time = "2011", 
+                               geography = london_ids, # replace with "TYPE297" for all MSOAs
+                               measures = 20100, RURAL_URBAN = 0)
+    }
+  }else{
+    if(SEX == TRUE){
+      tmp_en <- nomis_get_data(id = i, time = "2011", 
+                               geography = london_ids, # replace with "TYPE297" for all MSOAs
+                               measures = 20100, C_SEX = 0)
+    }else{
+      tmp_en <- nomis_get_data(id = i, time = "2011", 
+                               geography = london_ids, # replace with "TYPE297" for all MSOAs
+                               measures = 20100)
+    }
+
+  }
+
+  # Append (in case of different regions)
+  ks_tmp <- tmp_en
+
+  # Make lower case names
+  names(ks_tmp) <- tolower(names(ks_tmp))
+  names(ks_tmp)[names(ks_tmp) == "geography_code"] <- "msoa11"
+  names(ks_tmp)[names(ks_tmp) == "geography_name"] <- "name"
+
+  # replace weird cell codes
+  onlynum <- which(grepl("^[[:digit:]]+$", ks_tmp$cell_code))
+  if(length(onlynum) != 0){
+    code <- substr(ks_tmp$cell_code[-onlynum][1], 1, 7)
+    if(is.na(code)){
+      code <- i
+    }
+    ks_tmp$cell_code[onlynum] <- paste0(code, "_", ks_tmp$cell_code[onlynum])
+  }
+
+  # save codebook
+  ks_cb <- unique(ks_tmp[, c("date", "cell_type", "cell", "cell_code", "cell_name")])
+
+  ### Reshape
+  ks_res <- tidyr::pivot_wider(ks_tmp, id_cols = c("msoa11", "name"),
+                               names_from = "cell_code",
+                               values_from = "obs_value")
+
+  ### Merge
+  if(i == ksids[1]){
+    census_keystat.df <- ks_res
+    census_keystat_cb.df <- ks_cb
+  }else{
+    census_keystat.df <- merge(census_keystat.df, ks_res, by = c("msoa11", "name"), all = TRUE)
+    census_keystat_cb.df <- rbind(census_keystat_cb.df, ks_cb)
+  }
+
+}
+
+
+# Descirption are saved in the codebook
+head(census_keystat_cb.df)
+
+### Merge with MSOA geometries above
+msoa.spdf <- merge(msoa.spdf, census_keystat.df, 
+                   by.x = "MSOA11CD", by.y = "msoa11", all.x = TRUE)
+
+```
+
+Now we can, for instance, plot the spatial distribution of ethnic groups.
+
+```{r}
+
+msoa.spdf$per_white <- msoa.spdf$KS201EW_100 / msoa.spdf$KS201EW0001 * 100
+
+mapview(msoa.spdf[, "per_white"])
+
+```
+
+
+
+
+
+# References
