@@ -1,7 +1,7 @@
 ---
 title: "Applied Web Scraping"
 author: "Tobias Rüttenauer"
-date: "March 24, 2023"
+date: "March 27, 2023"
 output_dir: docs
 output: 
   html_document:
