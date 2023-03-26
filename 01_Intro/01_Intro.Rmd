@@ -21,7 +21,7 @@ opts_chunk$set(
   fig.height=4, #fig.width=6,
   # out.width="748px", #out.length="520.75px",
   dpi=300, #fig.path='Figs/',
-  cache=T#, echo=F, warning=F, message=F
+  cache=F#, echo=F, warning=F, message=F
   )
 library(tidyverse)
 library(hrbrthemes)
@@ -638,7 +638,7 @@ WDIsearch("CO2.*capita")
 
 2) Query the indicators
 
-```{r eval=FALSE, warning=FALSE}
+```{r eval=TRUE, warning=FALSE}
 # Define countries, indicators form above, and time period
 wd.df <- WDI(country = "all", 
              indicator = c('population' = "SP.POP.TOTL", 
