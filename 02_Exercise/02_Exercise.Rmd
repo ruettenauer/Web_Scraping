@@ -183,7 +183,7 @@ mapview(msoa.spdf[, "POPDEN"])
 
 ```
 
-## Census API (admin units)
+## Census API 
 
 Now that we have some boundaries and shapes of spatial units in London, we can start looking for different data sources to populate the geometries.
 
@@ -332,6 +332,47 @@ msoa.spdf$per_white <- msoa.spdf$KS201EW_100 / msoa.spdf$KS201EW0001 * 100
 mapview(msoa.spdf[, "per_white"])
 
 ```
+
+
+
+## OpenStreetMap API
+
+Another interesting data source is the OpenStreetMap API, which provides information about the geographical location of a serious of different indicators. Robin Lovelace provides a nice introduction to the [osmdata API](https://cran.r-project.org/web/packages/osmdata/vignettes/osmdata.html). Available features can be found on [OSM wiki](https://wiki.openstreetmap.org/wiki/Map_features).
+
+
+```{r eval=TRUE}
+# First we create a bounding box of where we want to query data
+# st_bbox() can be used to get bounding boxes of an existing spatial object (needs CRS = 4326)
+# q <- opq(bbox = 'greater london uk')
+q <- opq(bbox = st_bbox(st_transform(msoa.spdf, 4326)), 
+         timeout = 100)
+
+# Lets get the location of pubs in London
+osmq <- add_osm_feature(q, key = "amenity", value = c("pub", "bar"))
+
+# Query
+pubs.osm <- osmdata_sf(osmq)
+
+# Right now there are some results in polygons, some in points, and they overlap
+# Make unique points / polygons 
+pubs.osm <- unique_osmdata(pubs.osm)
+
+# Get points and polygons (there are barly any pubs as polygons, so we ignore for now)
+pubs.points <- pubs.osm$osm_points
+pubs.polys <- pubs.osm$osm_multipolygons
+
+mapview(pubs.points)
+
+# Drop OSM file
+rm(pubs.osm); gc()
+
+# Reduce to point object only 
+pubs.spdf <- pubs.points
+
+
+```
+
+Note that OSM is solely based on contribution by users, and the __quality of OSM data varies__. Usually data quality is better in larger cities, adn better for more stable features (such as hospitals, train stations, highways). However, data from [London Datastore](https://data.london.gov.uk/dataset/cultural-infrastructure-map) would indicate more pubs than what we find with OSM.
 
 
 
