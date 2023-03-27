@@ -93,7 +93,7 @@ head(trending.players.df)
 
 - Can you wrap this into a loop for multiple players? __USE `sys.sleep()` TO PAUSE!__
 
-```{r eval=FALSE, echo = FALSE}
+```{r eval=FALSE, echo = TRUE}
 
 ### We will loop over these popular players
 
