@@ -148,7 +148,7 @@ name: trace
 
 ### The Decline and Persistence of the Old Boy: Private Schools and Elite Recruitment
 
-![:scale 70%](fig/rahal.png)
+![:scale 70%](fig/rahal2.PNG)
 
 [Reeves et al., American Sociological Review](https://journals.sagepub.com/doi/10.1177/0003122417735742)
 
@@ -207,7 +207,7 @@ name: trace
 
 ### Increase in Discrimination Against Arabs and Muslims on AirBnB after Paris Attacks
 
-![:scale 60%](fig/Wagner.png)
+![:scale 65%](fig/Wagner2.PNG)
 
 [Wagner & Petev, Working Paper](https://crest.science/RePEc/wpstorage/2019-22.pdf)
 
@@ -695,7 +695,7 @@ pl
 
 See [academictwitteR](https://github.com/cjbarrie/academictwitteR) for Twitter API
 
-![:scale 70%](fig/twitter.png)
+![:scale 70%](twitter2.PNG)
 
 
 
